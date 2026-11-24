@@ -1,0 +1,12 @@
+{
+  "appId": "com.tapowatch.app",
+  "appName": "Tapo Watch",
+  "webDir": "www",
+  "server": {
+    "cleartext": true,
+    "allowNavigation": ["*"]
+  },
+  "android": {
+    "backgroundColor": "#0b1418"
+  }
+}
