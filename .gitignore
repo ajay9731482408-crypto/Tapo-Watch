@@ -1,0 +1,7 @@
+settings.json
+recordings/
+snaps/
+events.json
+security.log
+__pycache__/
+.venv/
