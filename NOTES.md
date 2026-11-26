@@ -13,6 +13,8 @@ User has: a **Tapo** camera (moves) and a **CP Plus** camera (fixed, no motor). 
 - `.gitignore`: keeps settings.json (camera passwords), recordings, snaps, events.json, security.log out of GitHub
 - `branding/`: logo master `tapo-watch-logo.svg`, HD PNGs (1024, 2048). Logo = gold shield with a camera lens on a dark teal tile.
 - `static/`: icon-192/512.png and favicon (home-screen and PWA icons, served by app.py)
+- `web_launcher/`: installable web app for Vercel (static, no build). Remembers the server address, then opens it. Has manifest, service worker, icons, vercel.json. Deploy as Vercel project with root directory `web_launcher`.
+- `native_app/`: **NEW phone-only Android app (Kotlin, Jetpack Compose, libVLC)**, applicationId `com.tapowatch.mobile`. No computer needed. Files: Models.kt (storage, brands, RTSP urls), Onvif.kt (camera's own motion/person/tamper events over ONVIF), WatchService.kt (foreground service: listens to events, records clips with libVLC sout to .ts, notifications, cleanup), Ui.kt (drawer + bottom tabs, Home, Events, Clips, Settings, Guide), Camera.kt (live view, camera screen, add/edit camera, player), MainActivity.kt (theme). Build: Bitrise workflow `native` (downloads Gradle 8.5, runs assembleDebug, outputs tapo-watch-native.apk). Never compiled yet when written; fix compile errors from the Bitrise log.
 - `autostart/`: `install_windows.bat`, `start_tapo_watch.bat`, `install_linux.sh` (start on boot, restart if it stops)
 - `android_app/` (icon + splash sources in `assets/`; the workflow runs `capacitor-assets generate --android`): Capacitor wrapper (asks for server address like 192.168.1.25:5000, remembers it, opens it)
 - `.github/workflows/build-apk.yml`: GitHub Actions builds `app-debug.apk` (Run workflow, download artifact `tapo-watch-apk`)
@@ -55,16 +57,29 @@ MEGA 20 GB (encrypted) mega.io; Google Drive 15 GB drive.google.com; pCloud up t
 - The sandbox's OpenCV can't find the face cascade file (harmless in tests).
 
 ## Tools / accounts status
-- Bitrise connector: **connected**. Workspace slug `009241c48ea2165e`. No Bitrise app registered yet.
-- To build via Bitrise Claude needs a **GitHub repo URL** (and Bitrise linked to GitHub). Free alternative already in the repo: GitHub Actions workflow.
-- Claude cannot create the GitHub repo or push code. User runs: `git init`, `git add .`, `git commit -m "Tapo Watch"`, `git branch -M main`, `git remote add origin <repo url>`, `git push -u origin main`.
-- Expo connector was offered but is not a good fit (React Native only).
+- GitHub repo: https://github.com/ajay9731482408-crypto/Tapo-Watch (Claude can't read it: private or not visible to Claude).
+- Bitrise connector: connected. Workspace slug `009241c48ea2165e`. App registered: **Tapo Watch**, app slug `cdf8c86a-b382-4359-9258-02a82ac4020a`, branch `main`, stack `ubuntu-noble-24.04-bitrise-2025-android`.
+- Bitrise workflow `primary` (stored on Bitrise, not in the repo): git-clone, Java 17, script (npm install, cap add android, capacitor-assets, gradlew assembleDebug, copy to deploy dir as tapo-watch.apk), deploy-to-bitrise-io.
+- Build #1 FAILED at git clone: "Authentication failed". Bitrise can't read the private repo yet. Fix: make repo public, or connect GitHub to Bitrise in its dashboard (Project settings), then re-run `trigger_bitrise_build` (workflow `primary`), poll `get_build`, read failures with `get_build_steps` (status failed), get the APK with `list_artifacts`.
+- **Bitrise build #3 SUCCEEDED: APK built** (Tapo Watch 1.0, package com.tapowatch.app, debug-signed, 6 MB). Public install page: https://www.bitrise.io/artifact/441218821/p/5f5c07c327734d885d7112ca1c41d88f
+- Bitrise build #2 failed in Gradle with HTTP 429 (Maven Central rate limit): everything before Gradle worked (clone, npm, cap add, assets). Build #3 was started as a retry (slug `832e187b-fe71-4582-b66f-6178ab5827bd`). If 429 repeats, retry later or use GitHub Actions.
+- Vercel connector: connected. Team `ajay-ac3b` (id `team_VrQtAxFYAlb2kkuz8Rr5ppU6`, hobby plan). No project yet. `create_deployment` is not available to Claude, so deploy through GitHub: push `web_launcher/`, then call `create_git_project` with repo `ajay9731482408-crypto/Tapo-Watch`, rootDirectory `web_launcher`.
+- Vercel cannot run the camera server (needs OpenCV, long-running threads, home network). The Vercel site is only the installable launcher. HTTPS page cannot embed video from an http:// home server (mixed content), so it opens the server as a full page instead.
+- Free alternative: GitHub Actions workflow in the repo (Actions tab, Build Android APK, Run workflow).
+- Claude cannot create the GitHub repo or push code; the user does that.
+
+## Phone-only app (decided with user, 2026-11-25)
+User has 2x Tapo C210 (firmware 1.5.5, Camera Account was OFF in the Tapo app, SD card loop recording works) and wants everything on the phone: live view, record, detect even when app is closed, notifications. Design reference: Tapo app screens + side drawer with BROWSE/MORE sections and bottom tabs (anime site screenshot). Own icons/art only, not Tapo's.
+- Detection uses the camera's ONVIF events (no video decoding): Tapo ONVIF port 2020 (needs Camera Account), others port 80, Reolink 8000. Topics matched: People/Person/Human, Tamper, Motion.
+- Not built yet: face detection, Smart follow, Talk, Pan & Tilt, Alarm, Privacy (greyed 'Coming soon'), SD-card playback.
+- Risks to check on a real phone: ONVIF event parsing on C210, libVLC recording headless, battery killers (Xiaomi). Ask user for screenshots/error text.
+- Update flow: user pushes `native_app/` to GitHub, then Claude triggers Bitrise workflow `native` (trigger_bitrise_build workflow_id `native`), reads get_build_steps/get_build_log on failure, fetches APK via list_artifacts + get_artifact.
 
 ## User preferences
 Simple plain language, mobile-friendly short answers, wants it as an Android app, wants GitHub, free tools, security-focused.
 
 ## Next steps
-1. User pushes the folder to GitHub and shares the repo URL.
+1. Give Bitrise access to the repo (see above) or use GitHub Actions.
 2. Either run the GitHub Actions workflow, or register the repo on Bitrise (`register_app`, then `finish_bitrise_app` with project type `other` and an Android stack, then `trigger_bitrise_build`) and fetch the APK with `list_artifacts`.
 3. Test on real cameras; fix any pytapo errors using the exact error text.
 4. Optional: app icon, signed release build, presets for Tapo motor cameras, Windows .exe.
