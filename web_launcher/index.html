@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tapo Watch</title>
+<meta name="description" content="Open your Tapo Watch cameras from any phone or computer.">
+<meta name="theme-color" content="#0b1418">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/favicon.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tapo Watch">
+<style>
+:root{--bg:#0b1418;--s1:#111f25;--s2:#172b33;--line:#22383f;--text:#e7ecea;--dim:#85999d;--amber:#f2b84b;--red:#ff5a47;color-scheme:dark}
+@media(prefers-color-scheme:light){:root{--bg:#f3f0e8;--s1:#fff;--s2:#ebe6da;--line:#d8d1c0;--text:#15262b;--dim:#5f7377;--amber:#b87800;--red:#d63d2c;color-scheme:light}}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 0 0,color-mix(in srgb,var(--amber) 12%,transparent),transparent 50%) fixed,var(--bg);color:var(--text);
+font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;padding:max(20px,env(safe-area-inset-top)) 20px max(20px,env(safe-area-inset-bottom));display:grid;place-items:center}
+main{width:min(440px,100%);display:grid;gap:16px}
+.hero{text-align:center;display:grid;gap:8px;justify-items:center}
+.hero img{width:96px;height:96px;border-radius:22px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+h1{margin:6px 0 0;font-size:28px;letter-spacing:-.02em}h2{margin:0 0 8px;font-size:17px;letter-spacing:-.01em}
+p{margin:0;color:var(--dim)}
+.card{background:var(--s1);border:1px solid var(--line);border-radius:18px;padding:18px;display:grid;gap:12px}
+input{width:100%;padding:13px 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit;min-height:48px}
+button{padding:13px 16px;border-radius:12px;border:0;background:var(--amber);color:#1a1405;font:inherit;font-weight:600;min-height:48px;cursor:pointer}
+button.ghost{background:var(--s2);color:var(--text);border:1px solid var(--line)}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.row{display:flex;gap:10px}.row>*{flex:1}
+#err{color:var(--red);min-height:1.4em;font-size:14px}
+ol{margin:0;padding-left:20px;color:var(--dim)}li{margin:4px 0}b{color:var(--text)}
+small{color:var(--dim);font-size:13px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <div class="hero">
+    <img src="/icon-192.png" alt="Tapo Watch logo" width="96" height="96">
+    <h1>Tapo Watch</h1>
+    <p>Your cameras, from any phone or computer.</p>
+  </div>
+
+  <section class="card" id="open" hidden>
+    <h2>Opening your cameras</h2>
+    <p>Connecting to <b id="where"></b></p>
+    <div class="row"><button id="openNow">Open now</button><button class="ghost" id="change">Change address</button></div>
+  </section>
+
+  <section class="card" id="setup" hidden>
+    <h2>Connect to your Tapo Watch</h2>
+    <p>Type the address of the computer that runs Tapo Watch. It is shown when you start it.</p>
+    <input id="addr" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="192.168.1.25:5000" aria-label="Server address">
+    <small>Away from home? Use the Tailscale address of that computer.</small>
+    <div id="err" role="alert"></div>
+    <button id="save">Save and open</button>
+  </section>
+
+  <section class="card" id="install">
+    <h2>Install as an app</h2>
+    <button id="installBtn" hidden>Install Tapo Watch</button>
+    <ol id="steps">
+      <li><b>Android (Chrome):</b> tap the menu, then <b>Install app</b>.</li>
+      <li><b>iPhone (Safari):</b> tap Share, then <b>Add to Home Screen</b>.</li>
+      <li><b>Computer (Chrome or Edge):</b> click the install icon in the address bar.</li>
+    </ol>
+  </section>
+
+  <section class="card">
+    <h2>How it works</h2>
+    <p>The cameras, recordings and face detection run on your own computer. This page is only a doorway that remembers where it is, so your video never passes through this website.</p>
+    <small>Your address is saved on this device only.</small>
+  </section>
+</main>
+
+<script>
+(function () {
+  var KEY = "tapo_watch_server", $ = function (i) { return document.getElementById(i); }, timer, dp;
+  var standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  if (standalone) $("install").hidden = true;
+
+  function clean(v) {
+    v = (v || "").trim().replace(/\/+$/, "");
+    if (v && !/^https?:\/\//i.test(v)) v = "http://" + v;
+    return v;
+  }
+  function valid(u) { return /^https?:\/\/[^\s\/]+$/i.test(u); }
+  function go(u) { location.href = u; }
+  function showSetup(msg) {
+    clearTimeout(timer);
+    $("open").hidden = true; $("setup").hidden = false;
+    $("addr").value = (localStorage.getItem(KEY) || "").replace(/^http:\/\//, "");
+    $("err").textContent = msg || "";
+  }
+
+  $("save").onclick = function () {
+    var u = clean($("addr").value);
+    if (!valid(u)) { $("err").textContent = "That doesn't look like an address. Try 192.168.1.25:5000"; return; }
+    localStorage.setItem(KEY, u); go(u);
+  };
+  $("addr").addEventListener("keydown", function (e) { if (e.key === "Enter") $("save").click(); });
+  $("change").onclick = function () { showSetup(); };
+  $("openNow").onclick = function () { go(localStorage.getItem(KEY)); };
+
+  var saved = null;
+  try { saved = localStorage.getItem(KEY); } catch (e) {}
+  if (saved && location.search.indexOf("setup") < 0 && valid(saved)) {
+    $("where").textContent = saved.replace(/^https?:\/\//, "");
+    $("open").hidden = false;
+    timer = setTimeout(function () { go(saved); }, 1500);
+  } else { showSetup(); }
+
+  addEventListener("beforeinstallprompt", function (e) {
+    e.preventDefault(); dp = e; $("installBtn").hidden = false; $("steps").hidden = true;
+  });
+  $("installBtn").onclick = function () {
+    if (!dp) return; dp.prompt();
+    dp.userChoice.then(function () { dp = null; $("installBtn").hidden = true; $("steps").hidden = false; });
+  };
+  addEventListener("appinstalled", function () { $("install").hidden = true; });
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(function () {});
+})();
+</script>
+</body>
+</html>
